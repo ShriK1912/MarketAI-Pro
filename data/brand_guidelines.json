@@ -1,0 +1,22 @@
+{
+  "brand_name": "MarketAI",
+  "voice_description": "Confident, practical, polished, and helpful product marketing voice for modern software launches.",
+  "tone_words": ["clear", "confident", "practical"],
+  "forbidden_words": ["revolutionary", "game-changing", "guaranteed"],
+  "competitors": ["CompetitorOne", "CompetitorTwo", "CompetitorThree"],
+  "hashtag_whitelist": ["#AI", "#Marketing", "#Automation", "#ProductLaunch", "#B2B"],
+  "required_cta": "Learn more today",
+  "tone_examples": [
+    {
+      "label": "good",
+      "text": "A concise launch post that explains the product benefit, names the audience, and closes with a specific CTA."
+    },
+    {
+      "label": "avoid",
+      "text": "A vague hype-heavy post with unsupported claims, filler adjectives, and no real business value."
+    }
+  ],
+  "color_primary": "#8B0000",
+  "color_secondary": "#F3E9E2",
+  "logo_path": "./data/logo.png"
+}

@@ -1,0 +1,42 @@
+[
+  {
+    "id": "li-001",
+    "platform": "linkedin",
+    "text": "We built a workflow that helps product teams turn release notes into launch-ready messaging in minutes. Clear context, consistent tone, and a CTA your team can ship with confidence.",
+    "engagement_score": 0.92,
+    "tone": "professional",
+    "mood_tags": ["b2b", "launch", "clarity"]
+  },
+  {
+    "id": "li-002",
+    "platform": "linkedin",
+    "text": "Launching a feature is hard when positioning, timing, and channel formatting all compete for attention. We streamlined that work into one guided flow for marketing teams.",
+    "engagement_score": 0.86,
+    "tone": "professional",
+    "mood_tags": ["process", "efficiency", "launch"]
+  },
+  {
+    "id": "x-001",
+    "platform": "twitter",
+    "text": "Ship clearer product launch copy faster. One flow for ideation, channel variants, and visuals. Learn more today. #AI #Marketing",
+    "engagement_score": 0.88,
+    "tone": "energetic",
+    "mood_tags": ["shortform", "cta"]
+  },
+  {
+    "id": "ig-001",
+    "platform": "instagram",
+    "text": "From feature idea to launch visuals, your campaign can move with less friction and more consistency. Built for teams that want content systems, not content chaos.",
+    "engagement_score": 0.9,
+    "tone": "inspiring",
+    "mood_tags": ["visual", "brand", "system"]
+  },
+  {
+    "id": "li-003",
+    "platform": "linkedin",
+    "text": "Bad launch copy usually fails in the same ways: unclear audience, weak proof, and no practical next step. Good systems prevent that before publish day.",
+    "engagement_score": 0.52,
+    "tone": "educational",
+    "mood_tags": ["contrast", "teaching"]
+  }
+]

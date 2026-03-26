@@ -1,0 +1,17 @@
+[
+  {
+    "feature_name": "Dark Mode Analytics",
+    "description": "A new dashboard feature that lets product teams compare user engagement across dark and light mode experiences with one-click visual breakdowns.",
+    "target_audience": "Product marketers and growth teams"
+  },
+  {
+    "feature_name": "Team Approval Flow",
+    "description": "A collaboration feature that adds approval checkpoints, comments, and publish readiness indicators to campaign generation workflows.",
+    "target_audience": "Marketing operations managers"
+  },
+  {
+    "feature_name": "Launch Brief Importer",
+    "description": "An upload workflow that turns raw release notes and positioning docs into structured launch briefs the content system can use immediately.",
+    "target_audience": "Product marketing managers"
+  }
+]

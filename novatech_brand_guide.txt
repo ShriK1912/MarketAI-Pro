@@ -1,0 +1,14 @@
+Company: NovaTech Solutions
+Mission: We build enterprise AI to automate tedious workflows and save engineering hours.
+Core Voice: Confident, hyper-professional, analytical, slightly visionary.
+Tone words to use: Seamless, Paradigm, Next-Gen, Frictionless, Leverage.
+Words to avoid: Cheap, easy, hack, basically.
+Competitors: OldCorp, LegacySystems.
+
+CTA required: "Book a demo at novatech.ai"
+
+Visual Aesthetic: Cinematic corporate lighting, glowing neon blue data lines over dark minimalist backgrounds. Highly detailed, photorealistic 8k render.
+
+LinkedIn Rules: Extremely professional. Long paragraphs discussing ROI and cost savings. No emojis except a single chart or rocket emoji.
+Twitter Rules: Extremely short. Hook + stat. Never exceed 200 characters.
+Instagram Rules: Hype! Very visual language. Use 10-15 hashtags including #AI #Enterprise #NovaTech. Include minimum 6 emojis like 🔥🚀💻⚡️.
