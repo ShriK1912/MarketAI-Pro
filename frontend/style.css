@@ -2,6 +2,80 @@
    MarketAI Pro – "Electric Obsidian" Theme
    ========================================== */
 
+/* ─── Additions: Carousel / GIF / Video / Progress bar ─── */
+.section-label {
+  font-size: 13px; font-weight: 700; letter-spacing: 0.5px;
+  text-transform: uppercase; color: var(--on-surface);
+  margin: 20px 0 10px;
+}
+
+/* Progress bar */
+.progress-bar-wrap {
+  margin-top: 10px; height: 4px; width: 100%; max-width: 340px;
+  background: var(--surface-top); border-radius: 2px; overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%; width: 0%; border-radius: 2px;
+  background: linear-gradient(90deg, var(--primary), var(--secondary));
+  transition: width 2.5s ease;
+}
+
+/* Loading dots */
+.vis-status-anim { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.vis-dots { display: flex; gap: 5px; }
+.vis-dots span {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--secondary); opacity: 0.3;
+  animation: dot-pulse 1.2s ease-in-out infinite;
+}
+.vis-dots span:nth-child(2) { animation-delay: 0.2s; }
+.vis-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes dot-pulse { 0%,80%,100%{opacity:0.2;transform:scale(0.8)} 40%{opacity:1;transform:scale(1.1)} }
+
+/* Carousel */
+.carousel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px; margin-bottom: 20px;
+}
+.carousel-slide {
+  background: var(--surface-lo);
+  border: 1px solid var(--border-glow);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+.carousel-slide:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(108,92,231,0.2);
+}
+.carousel-slide img { width: 100%; height: auto; display: block; }
+.slide-label {
+  padding: 5px 8px; font-size: 11px; font-weight: 600;
+  color: var(--on-surface); text-transform: uppercase; letter-spacing: 0.5px;
+  background: var(--surface);
+}
+
+/* GIF */
+.gif-img {
+  max-width: 360px; width: 100%; height: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-glow);
+  box-shadow: 0 0 20px rgba(108,92,231,0.12);
+  margin-bottom: 20px;
+}
+
+/* Video */
+.vid-player {
+  width: 100%; max-width: 520px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-glow);
+  background: #000;
+  margin-bottom: 20px;
+}
+
+
+
 /* --- Tokens --- */
 :root {
   --bg:             #0D0F1A;

@@ -38,7 +38,7 @@
           <button class="btn-ghost btn-sm" onclick="document.getElementById('fileInput').click()">Browse</button>
         </div>
         <button class="btn-primary btn-sm mt-2" id="parseBtn" disabled>Parse &amp; Scrape</button>
-        <div id="parseStatus" class="status-msg hidden"></div>
+        <div id="parseStatus" class="status-msg" style="display:none"></div>
       </div>
 
       <div class="sidebar-divider"></div>
@@ -50,7 +50,7 @@
 
       <button class="btn-ghost btn-block mt-auto" id="mockEventBtn">⚡ New Event Detected</button>
 
-      <div id="onboardSummary" class="onboard-summary hidden"></div>
+      <div id="onboardSummary" class="onboard-summary" style="display:none"></div>
     </aside>
 
     <!-- ───────────── MAIN CONTENT ───────────── -->
@@ -58,13 +58,13 @@
 
       <!-- Tab bar -->
       <div class="tab-bar">
-        <button class="tab-btn active" data-tab="generate" id="tabGenerate">Generate</button>
-        <button class="tab-btn" data-tab="visuals" id="tabVisuals">Visuals</button>
-        <button class="tab-btn" data-tab="history" id="tabHistory">History</button>
+        <button class="tab-btn active" data-tab="generate">Generate</button>
+        <button class="tab-btn" data-tab="visuals">Visuals</button>
+        <button class="tab-btn" data-tab="history">History</button>
       </div>
 
       <!-- ── TAB: GENERATE ── -->
-      <section class="tab-panel active" id="panelGenerate">
+      <section class="tab-panel" id="panelGenerate" style="display:block">
         <div class="two-col">
 
           <!-- INPUT CARD -->
@@ -78,11 +78,11 @@
             </div>
             <div class="form-group">
               <label class="form-label">Description <span class="char-count" id="descCount">0/500</span></label>
-              <textarea class="glass-input" id="description" rows="4" maxlength="500" placeholder="What does this feature do and why does it matter?">A new dashboard feature that helps teams compare engagement across dark and light mode experiences.</textarea>
+              <textarea class="glass-input" id="description" rows="4" maxlength="500">A new dashboard feature that helps teams compare engagement across dark and light mode experiences.</textarea>
             </div>
             <div class="form-group">
               <label class="form-label">Target Audience</label>
-              <input class="glass-input" id="audience" type="text" placeholder="e.g. Product marketers and growth teams" value="Product marketers and growth teams" />
+              <input class="glass-input" id="audience" type="text" value="Product marketers and growth teams" />
             </div>
             <div class="form-group">
               <label class="form-label">Tone</label>
@@ -104,9 +104,9 @@
 
             <button class="btn-gradient btn-block" id="generateBtn">
               <span id="generateBtnText">⚡ Generate Campaign</span>
-              <span id="generateSpinner" class="btn-spinner hidden"></span>
+              <span id="generateSpinner" class="btn-spinner" style="display:none"></span>
             </button>
-            <div id="generateError" class="error-msg hidden"></div>
+            <div id="generateError" class="error-msg" style="display:none"></div>
           </div>
 
           <!-- OUTPUT CARD -->
@@ -116,7 +116,7 @@
               <p>Generate content to see results here.</p>
             </div>
 
-            <div id="outputContent" class="hidden">
+            <div id="outputContent" style="display:none">
               <div class="score-row">
                 <div class="score-ring-wrapper">
                   <svg class="score-ring" viewBox="0 0 100 100">
@@ -144,15 +144,16 @@
                 <button class="ptab" data-ptab="instagram">Instagram</button>
               </div>
 
-              <div id="ptabLinkedin" class="ptab-panel active">
+              <!-- All 3 ptab panels use inline style, no 'hidden' class -->
+              <div id="ptabLinkedin" class="ptab-panel" style="display:block">
                 <textarea class="glass-input output-text" id="outLinkedin" rows="6"></textarea>
                 <div class="hashtag-row" id="hashLinkedin"></div>
               </div>
-              <div id="ptabTwitter" class="ptab-panel hidden">
+              <div id="ptabTwitter" class="ptab-panel" style="display:none">
                 <textarea class="glass-input output-text" id="outTwitter" rows="6"></textarea>
                 <div class="hashtag-row" id="hashTwitter"></div>
               </div>
-              <div id="ptabInstagram" class="ptab-panel hidden">
+              <div id="ptabInstagram" class="ptab-panel" style="display:none">
                 <textarea class="glass-input output-text" id="outInstagram" rows="6"></textarea>
                 <div class="hashtag-row" id="hashInstagram"></div>
               </div>
@@ -172,15 +173,16 @@
       </section>
 
       <!-- ── TAB: VISUALS ── -->
-      <section class="tab-panel hidden" id="panelVisuals">
+      <section class="tab-panel" id="panelVisuals" style="display:none">
         <div id="visualsLocked" class="empty-state large">
           <div class="empty-icon">🖼️</div>
           <p>Generate copy first, then create visuals.</p>
         </div>
 
-        <div id="visualsReady" class="hidden">
-          <!-- Step tracker -->
+        <div id="visualsReady" style="display:none">
           <div class="visuals-layout">
+
+            <!-- Step Tracker -->
             <div class="step-tracker">
               <div class="step done" id="step1">
                 <div class="step-dot">✓</div>
@@ -196,53 +198,80 @@
               </div>
               <div class="step" id="step4">
                 <div class="step-dot">4</div>
-                <span>Send Notification</span>
+                <span>Notify</span>
               </div>
             </div>
 
+            <!-- Main Visuals area -->
             <div class="visuals-main">
               <button class="btn-gradient btn-wide" id="generateVisualsBtn">
                 <span id="visBtnText">🎨 Generate Visuals</span>
-                <span id="visSpinner" class="btn-spinner hidden"></span>
+                <span id="visSpinner" class="btn-spinner" style="display:none"></span>
               </button>
 
-              <div id="visStatus" class="vis-status hidden">
-                <div class="spinner-ring"></div>
+              <!-- Loading state -->
+              <div id="visStatus" class="vis-status" style="display:none">
+                <div class="vis-status-anim">
+                  <div class="spinner-ring"></div>
+                  <div class="vis-dots"><span></span><span></span><span></span></div>
+                </div>
                 <div>
                   <p class="vis-status-title">💻 Generating SDXL Turbo Visuals...</p>
-                  <p class="vis-status-sub">Estimated 3–5 minutes on CPU — running local AI model</p>
+                  <p class="vis-status-sub">Running local AI model — this takes 3–5 minutes on CPU</p>
+                  <div class="progress-bar-wrap"><div class="progress-bar-fill" id="visProgressBar"></div></div>
                 </div>
               </div>
 
-              <div id="imageResults" class="hidden">
+              <!-- Hero images -->
+              <div id="imageResults" style="display:none">
+                <h3 class="section-label">🖼️ Hero Images</h3>
                 <div class="image-grid">
-                  <div class="image-card" id="imgLinkedIn">
+                  <div class="image-card">
                     <p class="image-label">LinkedIn · 1200 × 628</p>
                     <img id="imgLiSrc" src="" alt="LinkedIn visual" />
                   </div>
-                  <div class="image-card" id="imgInstagram">
+                  <div class="image-card">
                     <p class="image-label">Instagram · 1080 × 1080</p>
                     <img id="imgIgSrc" src="" alt="Instagram visual" />
                   </div>
                 </div>
               </div>
 
-              <div id="packageActions" class="package-actions hidden">
-                <button class="btn-ghost" id="buildPkgBtn">📦 Build Package</button>
-                <a class="btn-teal" id="downloadLink" href="#" download style="display:none">📥 Download Package (.zip)</a>
-                <button class="btn-ghost slack-btn" id="slackBtn">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/></svg>
-                  Send Slack Notification
-                </button>
-                <div id="slackStatus" class="status-msg hidden"></div>
+              <!-- Carousel -->
+              <div id="carouselResults" style="display:none">
+                <h3 class="section-label">🎠 Carousel Slides</h3>
+                <div class="carousel-grid" id="carouselGrid"></div>
               </div>
-            </div>
-          </div>
-        </div>
+
+              <!-- GIF -->
+              <div id="gifResults" style="display:none">
+                <h3 class="section-label">🎞️ Animated GIF Preview</h3>
+                <img id="gifSrc" src="" alt="Animated GIF" class="gif-img" />
+              </div>
+
+              <!-- Video -->
+              <div id="videoResults" style="display:none">
+                <h3 class="section-label">🎬 Video Preview</h3>
+                <video id="videoSrc" controls class="vid-player"></video>
+              </div>
+
+              <!-- Package actions -->
+              <div id="packageActions" style="display:none" class="package-actions">
+                <button class="btn-ghost" id="buildPkgBtn">📦 Build Package</button>
+                <a class="btn-teal" id="downloadLink" href="#" download style="display:none">📥 Download (.zip)</a>
+                <button class="btn-ghost slack-btn" id="slackBtn">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/></svg>
+                  Slack
+                </button>
+              </div>
+
+            </div><!-- /visuals-main -->
+          </div><!-- /visuals-layout -->
+        </div><!-- /visualsReady -->
       </section>
 
       <!-- ── TAB: HISTORY ── -->
-      <section class="tab-panel hidden" id="panelHistory">
+      <section class="tab-panel" id="panelHistory" style="display:none">
         <div class="glass-card">
           <h2 class="card-title">Session History</h2>
           <div id="historyContent"><p class="muted">Loading…</p></div>
@@ -252,9 +281,7 @@
     </main>
   </div>
 
-  <!-- Toast notifications -->
   <div id="toastContainer" class="toast-container"></div>
-
   <script src="app.js"></script>
 </body>
 </html>

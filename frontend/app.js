@@ -1,36 +1,47 @@
 /* ============================================================
-   MarketAI Pro – Frontend JS
-   Talks to FastAPI at localhost:8000
+   MarketAI Pro – Frontend JS  (Fixed: tab switching, image URLs, carousel/GIF/MP4)
    ============================================================ */
 
 const API = 'http://localhost:8000';
 
-/* ── State ── */
 let state = {
   sessionId: null,
   generatedCopy: null,
-  sdxlImagePaths: null,
   imagePrompt: null,
+  hasVisuals: false,
 };
 
-/* ═══════════════════════════════════════
-   UTILITY
-═══════════════════════════════════════ */
-function $(id) { return document.getElementById(id); }
+/* ── Helpers ─────────────────────────────────── */
+const $  = id => document.getElementById(id);
+const el = q => document.querySelector(q);
+
+function show(id) { const e = $(id); if (e) e.style.display = ''; }   // restore default
+function showFlex(id) { const e = $(id); if (e) e.style.display = 'flex'; }
+function showBlock(id) { const e = $(id); if (e) e.style.display = 'block'; }
+function hide(id) { const e = $(id); if (e) e.style.display = 'none'; }
+function setHtml(id, html) { const e = $(id); if (e) e.innerHTML = html; }
 
 function toast(msg, isError = false) {
   const el = document.createElement('div');
   el.className = 'toast' + (isError ? ' error' : '');
   el.textContent = msg;
   $('toastContainer').appendChild(el);
-  setTimeout(() => el.remove(), 4000);
+  setTimeout(() => el.remove(), 4500);
 }
 
-function show(id)  { const el = $(id); if (el) { el.classList.remove('hidden'); } }
-function hide(id)  { const el = $(id); if (el) { el.classList.add('hidden'); } }
-function toggle(id, show) { show ? show(id) : hide(id); }
-
-function setHtml(id, html) { const el = $(id); if (el) el.innerHTML = html; }
+/* ── Convert backend file path → API /static URL ──
+   Handles both:
+     absolute: C:\Users\...\output\SESSION\images\file.png
+     relative: output\SESSION\images\file.png
+*/
+function pathToUrl(p) {
+  if (!p) return '';
+  const norm = p.replace(/\\/g, '/');
+  // Match "output/" anywhere in the normalised path
+  const match = norm.match(/(?:^|.*\/)output\/(.*)/);
+  if (!match) return `${API}/static/${norm}`;
+  return `${API}/static/${match[1]}`;
+}
 
 /* ═══════════════════════════════════════
    TABS
@@ -39,136 +50,118 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     const tab = btn.dataset.tab;
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-panel').forEach(p => { p.classList.remove('active'); p.classList.add('hidden'); });
     btn.classList.add('active');
-    const panel = $('panel' + tab.charAt(0).toUpperCase() + tab.slice(1));
-    if (panel) { panel.classList.remove('hidden'); panel.classList.add('active'); }
+
+    ['panelGenerate','panelVisuals','panelHistory'].forEach(id => hide(id));
+    const panelId = 'panel' + tab.charAt(0).toUpperCase() + tab.slice(1);
+    showBlock(panelId);
+
     if (tab === 'history') loadHistory();
     if (tab === 'visuals') refreshVisualsState();
   });
 });
 
 /* ═══════════════════════════════════════
-   PLATFORM MULTI-CHIPS
+   PLATFORM CHIPS  (multi-select)
 ═══════════════════════════════════════ */
-document.querySelectorAll('.chip').forEach(chip => {
-  chip.addEventListener('click', () => chip.classList.toggle('active'));
-});
-function selectedPlatforms() {
-  return [...document.querySelectorAll('.chip.active')].map(c => c.dataset.value);
-}
+document.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => c.classList.toggle('active')));
+const selectedPlatforms = () => [...document.querySelectorAll('.chip.active')].map(c => c.dataset.value);
 
 /* ═══════════════════════════════════════
-   PLATFORM OUTPUT TABS
+   PLATFORM OUTPUT TABS  (fixed: use style, not class)
 ═══════════════════════════════════════ */
 document.querySelectorAll('.ptab').forEach(btn => {
   btn.addEventListener('click', () => {
     const key = btn.dataset.ptab;
+    // deactivate all
     document.querySelectorAll('.ptab').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.ptab-panel').forEach(p => { p.classList.remove('active'); p.style.display = 'none'; });
+    document.querySelectorAll('.ptab-panel').forEach(p => { p.style.display = 'none'; });
+    // activate chosen
     btn.classList.add('active');
     const panel = $('ptab' + key.charAt(0).toUpperCase() + key.slice(1));
-    if (panel) { panel.classList.add('active'); panel.style.display = 'block'; }
+    if (panel) panel.style.display = 'block';
   });
 });
 
 /* ═══════════════════════════════════════
-   CHARACTER COUNT
+   CHAR COUNT
 ═══════════════════════════════════════ */
 const descEl = $('description');
-function updateDescCount() { $('descCount').textContent = `${descEl.value.length}/500`; }
+const updateDescCount = () => { $('descCount').textContent = `${descEl.value.length}/500`; };
 descEl.addEventListener('input', updateDescCount);
 updateDescCount();
 
 /* ═══════════════════════════════════════
-   BRAND DROPDOWN – load brands on start
+   BRAND LIST
 ═══════════════════════════════════════ */
 async function loadBrands() {
   try {
-    const res = await fetch(`${API}/list-brands`);
-    const brands = await res.json();
-    const sel = $('brandSelect');
+    const brands = await fetch(`${API}/list-brands`).then(r => r.json());
     brands.forEach(b => {
-      const opt = document.createElement('option');
-      opt.value = b; opt.textContent = b;
-      sel.appendChild(opt);
+      const o = document.createElement('option');
+      o.value = b; o.textContent = b;
+      $('brandSelect').appendChild(o);
     });
-  } catch { /* silent */ }
+  } catch {/*silent*/}
 }
 
 /* ═══════════════════════════════════════
-   FILE UPLOAD & PARSE
+   FILE UPLOAD / PARSE
 ═══════════════════════════════════════ */
-const fileInput = $('fileInput');
-const dropZone  = $('dropZone');
-const parseBtn  = $('parseBtn');
 let pendingFile = null;
+const dropZone = $('dropZone');
+const fileInput = $('fileInput');
+const parseBtn  = $('parseBtn');
 
-fileInput.addEventListener('change', () => {
-  if (fileInput.files[0]) setPendingFile(fileInput.files[0]);
-});
-
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) setPendingFile(fileInput.files[0]); });
+dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('over'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
 dropZone.addEventListener('drop', e => {
   e.preventDefault(); dropZone.classList.remove('over');
   if (e.dataTransfer.files[0]) setPendingFile(e.dataTransfer.files[0]);
 });
-
-function setPendingFile(file) {
-  pendingFile = file;
-  $('dropZone').querySelector('.drop-text').textContent = file.name;
+function setPendingFile(f) {
+  pendingFile = f;
+  dropZone.querySelector('.drop-text').textContent = f.name;
   parseBtn.disabled = false;
 }
 
 parseBtn.addEventListener('click', async () => {
   if (!pendingFile) return;
-  parseBtn.disabled = true;
-  parseBtn.textContent = 'Parsing…';
+  parseBtn.disabled = true; parseBtn.textContent = 'Parsing…';
   hide('parseStatus');
   const fd = new FormData();
   fd.append('file', pendingFile);
   try {
-    const res = await fetch(`${API}/onboard-brand`, { method: 'POST', body: fd });
+    const res  = await fetch(`${API}/onboard-brand`, { method: 'POST', body: fd });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || 'Parse failed');
-    // refresh brand list
-    const opt = document.createElement('option');
-    opt.value = data.brand_name; opt.textContent = data.brand_name; opt.selected = true;
+    const opt  = document.createElement('option');
+    opt.value  = data.brand_name; opt.textContent = data.brand_name; opt.selected = true;
     $('brandSelect').appendChild(opt);
-    toast(`✅ Brand "${data.brand_name}" onboarded!`);
+    toast(`✅ "${data.brand_name}" onboarded!`);
     const ps = $('parseStatus');
-    ps.textContent = `✓ ${data.brand_name} — template stored`;
-    ps.classList.remove('hidden');
-    if (data.onboarding_summary) renderOnboardSummary(data.onboarding_summary);
+    ps.textContent = `✓ ${data.brand_name} stored`;
+    ps.className = 'status-msg'; ps.style.display = 'block';
   } catch (err) {
     const ps = $('parseStatus');
     ps.textContent = err.message;
-    ps.classList.add('error-msg');
-    ps.classList.remove('hidden');
+    ps.className = 'error-msg'; ps.style.display = 'block';
     toast(err.message, true);
   } finally {
-    parseBtn.textContent = 'Parse & Scrape';
-    parseBtn.disabled = false;
+    parseBtn.textContent = 'Parse & Scrape'; parseBtn.disabled = false;
   }
 });
-
-function renderOnboardSummary(summary) {
-  const el = $('onboardSummary');
-  el.innerHTML = `<strong>Parsed</strong>: ${summary.search_status || '—'} &nbsp;|&nbsp; ${Object.keys(summary.parsed_fields || {}).length} fields`;
-  el.classList.remove('hidden');
-}
 
 /* ═══════════════════════════════════════
    MOCK EVENT
 ═══════════════════════════════════════ */
 $('mockEventBtn').addEventListener('click', async () => {
   try {
-    const res = await fetch(`${API}/mock-events`);
-    const ev = await res.json();
-    $('featureName').value = ev.feature_name || '';
-    $('description').value = ev.description || '';
-    $('audience').value = ev.target_audience || '';
+    const ev = await fetch(`${API}/mock-events`).then(r => r.json());
+    $('featureName').value  = ev.feature_name    || '';
+    $('description').value  = ev.description     || '';
+    $('audience').value     = ev.target_audience || '';
     updateDescCount();
     toast('⚡ Mock event loaded');
   } catch { toast('Could not load event', true); }
@@ -181,87 +174,84 @@ $('generateBtn').addEventListener('click', generateCampaign);
 
 async function generateCampaign() {
   const platforms = selectedPlatforms();
+  const featureName = $('featureName').value.trim();
+  if (!featureName)      { toast('Enter a feature name', true); return; }
   if (!platforms.length) { toast('Select at least one platform', true); return; }
 
-  const payload = {
-    feature_name:   $('featureName').value.trim(),
-    description:    $('description').value.trim(),
-    target_audience:$('audience').value.trim(),
-    tone:           $('tone').value,
-    platforms,
-    brand_name:     $('brandSelect').value,
-  };
-  if (!payload.feature_name) { toast('Enter a feature name', true); return; }
-
   $('generateBtn').disabled = true;
-  hide('generateBtnText'); show('generateSpinner');
-  hide('generateError'); hide('outputContent'); show('outputEmpty');
+  hide('generateBtnText'); showBlock('generateSpinner');
+  hide('generateError');
+  hide('outputContent'); showBlock('outputEmpty');
 
   try {
     const res = await fetch(`${API}/generate-sync`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        feature_name:    featureName,
+        description:     $('description').value.trim(),
+        target_audience: $('audience').value.trim(),
+        tone:            $('tone').value,
+        platforms,
+        brand_name:      $('brandSelect').value,
+      }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(JSON.stringify(data.detail || data));
 
-    state.sessionId = data.session_id;
+    state.sessionId     = data.session_id;
     state.generatedCopy = data.copy;
-    state.imagePrompt = data.copy?.image_prompt || payload.feature_name;
+    state.imagePrompt   = data.copy?.image_prompt || featureName;
+    state.hasVisuals    = false;
 
     renderOutput(data);
     toast('✅ Campaign generated!');
     refreshVisualsState();
   } catch (err) {
-    const el = $('generateError');
-    el.textContent = 'Error: ' + err.message;
-    el.classList.remove('hidden');
+    const e = $('generateError');
+    e.textContent = 'Error: ' + err.message;
+    e.style.display = 'block';
     toast('Generation failed', true);
   } finally {
     $('generateBtn').disabled = false;
-    show('generateBtnText'); hide('generateSpinner');
+    showBlock('generateBtnText'); hide('generateSpinner');
   }
 }
 
-/* ── Render generated output ── */
+/* ── Render output ── */
 function renderOutput(data) {
   hide('outputEmpty');
-  show('outputContent');
+  showBlock('outputContent');
 
-  // Score ring
+  // Score ring animation
   const score = data.brand_score || 0;
   $('scoreNumber').textContent = score;
   const arc = $('scoreArc');
-  const circumference = 251.2;
-  arc.style.strokeDashoffset = circumference - (score / 100) * circumference;
-  if (score >= 80) arc.style.stroke = 'var(--secondary)';
-  else if (score >= 60) arc.style.stroke = '#FDCB6E';
-  else arc.style.stroke = 'var(--error)';
+  const C = 251.2;
+  arc.style.strokeDashoffset = C - (score / 100) * C;
+  arc.style.stroke = score >= 80 ? 'var(--secondary)' : score >= 60 ? '#FDCB6E' : 'var(--error)';
 
-  const desc = score >= 80 ? 'Elite brand resonance' : score >= 60 ? 'Good alignment' : 'Needs tuning';
-  $('scoreDesc').textContent = desc;
+  $('scoreDesc').textContent = score >= 80 ? 'Elite brand resonance' : score >= 60 ? 'Good alignment' : 'Needs tuning';
 
-  // Stat chips
   const ts = data.token_stats || {};
-  $('statTokens').textContent = `${ts.total_tokens || '—'} tokens`;
+  $('statTokens').textContent  = `${ts.total_tokens  || '—'} tokens`;
   $('statLatency').textContent = ts.generation_time_ms ? `${(ts.generation_time_ms/1000).toFixed(1)}s` : '—';
 
-  // Platform content
-  populatePlatform('linkedin', data.copy?.linkedin);
-  populatePlatform('twitter',  data.copy?.twitter);
+  // Populate all 3 platform panels
+  populatePlatform('linkedin',  data.copy?.linkedin);
+  populatePlatform('twitter',   data.copy?.twitter);
   populatePlatform('instagram', data.copy?.instagram);
 
-  // Stats / Validation
-  $('genStats').textContent = JSON.stringify(data.token_stats, null, 2);
-  $('genValidation').textContent = JSON.stringify(data.validation, null, 2);
+  $('genStats').textContent      = JSON.stringify(data.token_stats, null, 2);
+  $('genValidation').textContent = JSON.stringify(data.validation,  null, 2);
 }
 
 function populatePlatform(key, item) {
-  const ta = $('out' + key.charAt(0).toUpperCase() + key.slice(1));
-  const hd = $('hash' + key.charAt(0).toUpperCase() + key.slice(1));
+  const K   = key.charAt(0).toUpperCase() + key.slice(1);
+  const ta  = $('out' + K);
+  const hd  = $('hash' + K);
   if (!ta) return;
-  ta.value = item?.caption || '';
+  ta.value   = item?.caption || '(not generated for this platform)';
   hd.innerHTML = (item?.hashtags || []).map(h => `<span class="hashtag">${h}</span>`).join('');
 }
 
@@ -270,24 +260,42 @@ function populatePlatform(key, item) {
 ═══════════════════════════════════════ */
 function refreshVisualsState() {
   if (!state.sessionId) {
-    show('visualsLocked'); hide('visualsReady'); return;
+    showBlock('visualsLocked'); hide('visualsReady'); return;
   }
-  hide('visualsLocked'); show('visualsReady');
-  if (state.sdxlImagePaths) {
-    renderImages(state.sdxlImagePaths);
-    activateStep(3);
-  }
+  hide('visualsLocked'); showBlock('visualsReady');
 }
 
 $('generateVisualsBtn').addEventListener('click', generateVisuals);
+
+// Fake progress bar that ticks up while waiting
+let progressInterval = null;
+function startProgress() {
+  let pct = 0;
+  const bar = $('visProgressBar');
+  if (bar) bar.style.width = '0%';
+  progressInterval = setInterval(() => {
+    pct = Math.min(pct + (Math.random() * 1.2), 90); // never hits 100 until done
+    if (bar) bar.style.width = pct + '%';
+  }, 3000);
+}
+function finishProgress() {
+  clearInterval(progressInterval);
+  const bar = $('visProgressBar');
+  if (bar) { bar.style.width = '100%'; setTimeout(() => bar.style.width = '0%', 800); }
+}
 
 async function generateVisuals() {
   if (!state.sessionId) { toast('Generate a campaign first', true); return; }
 
   $('generateVisualsBtn').disabled = true;
-  hide('visBtnText'); show('visSpinner');
-  show('visStatus'); hide('imageResults');
+  hide('visBtnText'); showBlock('visSpinner');
 
+  // Reset previous results
+  hide('imageResults'); hide('carouselResults'); hide('gifResults'); hide('videoResults'); hide('packageActions');
+
+  // Show loading
+  showFlex('visStatus');
+  startProgress();
   activateStep(2);
 
   try {
@@ -296,88 +304,98 @@ async function generateVisuals() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         session_id: state.sessionId,
-        prompt: state.imagePrompt,
-        platforms: ['linkedin', 'instagram'],
-        provider: 'local',
+        prompt:     state.imagePrompt,
+        platforms:  ['linkedin', 'instagram'],
+        provider:   'local',
       }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(JSON.stringify(data.detail || data));
 
-    state.sdxlImagePaths = data.image_paths_by_platform;
-    renderImages(state.sdxlImagePaths);
+    finishProgress();
+    hide('visStatus');
+    state.hasVisuals = true;
+
+    // ── Hero images ──
+    const paths = data.image_paths_by_platform || {};
+    if (paths.linkedin || paths.instagram) {
+      if (paths.linkedin)  { $('imgLiSrc').src = pathToUrl(paths.linkedin); }
+      if (paths.instagram) { $('imgIgSrc').src = pathToUrl(paths.instagram); }
+      showBlock('imageResults');
+    }
+
+    // ── Carousel ──
+    const slides = data.carousel_paths || [];
+    if (slides.length) {
+      const grid = $('carouselGrid');
+      grid.innerHTML = slides.map((p, i) =>
+        `<div class="carousel-slide"><img src="${pathToUrl(p)}" alt="Slide ${i+1}" /><p class="slide-label">Slide ${i+1}</p></div>`
+      ).join('');
+      showBlock('carouselResults');
+    }
+
+    // ── GIF ──
+    if (data.gif_path) {
+      $('gifSrc').src = pathToUrl(data.gif_path);
+      showBlock('gifResults');
+    }
+
+    // ── Video ──
+    if (data.mp4_path) {
+      const vid = $('videoSrc');
+      vid.src = pathToUrl(data.mp4_path);
+      vid.load();
+      showBlock('videoResults');
+    }
+
+    showBlock('packageActions');
     activateStep(3);
-    show('packageActions');
     toast('✅ Visuals generated!');
   } catch (err) {
+    finishProgress();
+    hide('visStatus');
     toast('Visual generation failed: ' + err.message, true);
   } finally {
     $('generateVisualsBtn').disabled = false;
-    show('visBtnText'); hide('visSpinner');
-    hide('visStatus');
+    showBlock('visBtnText'); hide('visSpinner');
   }
-}
-
-function renderImages(paths) {
-  show('imageResults');
-  const li = $('imgLiSrc');
-  const ig = $('imgIgSrc');
-  if (paths.linkedin)  li.src = pathToUrl(paths.linkedin);
-  if (paths.instagram) ig.src = pathToUrl(paths.instagram);
-}
-
-function pathToUrl(p) {
-  // Convert absolute Windows path → /static URL served by FastAPI
-  const norm = p.replace(/\\/g, '/');
-  const idx = norm.indexOf('/output/');
-  if (idx === -1) return p;
-  // Slice off everything before+including '/output' → keep '/<sessionId>/...'
-  return `${API}/static${norm.slice(idx + '/output'.length)}`;
 }
 
 /* ── Step tracker ── */
 function activateStep(n) {
   for (let i = 1; i <= 4; i++) {
-    const el = document.querySelector(`#step${i}`);
-    if (!el) continue;
-    el.classList.remove('done', 'active');
-    if (i < n) el.classList.add('done');
-    else if (i === n) el.classList.add('active');
+    const e = $('step' + i);
+    if (!e) continue;
+    e.classList.remove('done','active');
+    if (i < n) e.classList.add('done');
+    else if (i === n) e.classList.add('active');
   }
 }
 
 /* ── Build Package ── */
 $('buildPkgBtn').addEventListener('click', async () => {
   if (!state.sessionId) return;
-  $('buildPkgBtn').textContent = 'Building…';
-  $('buildPkgBtn').disabled = true;
+  $('buildPkgBtn').textContent = 'Building…'; $('buildPkgBtn').disabled = true;
   try {
     const res = await fetch(`${API}/package/${state.sessionId}`);
     if (!res.ok) throw new Error('Package build failed');
     const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const dl = $('downloadLink');
-    dl.href = url;
-    dl.download = `marketai_${state.sessionId.slice(0,8)}.zip`;
+    const url  = URL.createObjectURL(blob);
+    const dl   = $('downloadLink');
+    dl.href = url; dl.download = `marketai_${state.sessionId.slice(0,8)}.zip`;
     dl.style.display = 'inline-flex';
     activateStep(4);
     toast('📦 Package ready!');
-  } catch (err) {
-    toast(err.message, true);
-  } finally {
-    $('buildPkgBtn').textContent = '📦 Build Package';
-    $('buildPkgBtn').disabled = false;
-  }
+  } catch (err) { toast(err.message, true); }
+  finally { $('buildPkgBtn').textContent = '📦 Build Package'; $('buildPkgBtn').disabled = false; }
 });
 
 /* ── Slack Notify ── */
 $('slackBtn').addEventListener('click', async () => {
   if (!state.sessionId) return;
   try {
-    const res = await fetch(`${API}/notify/${state.sessionId}`, { method: 'POST' });
-    const data = await res.json();
-    if (data.ok) { toast('🚀 Slack notification sent!'); }
-    else { toast('Slack not configured or failed', true); }
+    const data = await fetch(`${API}/notify/${state.sessionId}`, { method: 'POST' }).then(r => r.json());
+    toast(data.ok ? '🚀 Slack notification sent!' : 'Slack not configured', !data.ok);
   } catch { toast('Slack request failed', true); }
 });
 
@@ -387,23 +405,19 @@ $('slackBtn').addEventListener('click', async () => {
 async function loadHistory() {
   setHtml('historyContent', '<p class="muted">Loading…</p>');
   try {
-    const res = await fetch(`${API}/history`);
-    const records = await res.json();
-    if (!records.length) {
-      setHtml('historyContent', '<p class="muted">No history yet.</p>');
-      return;
-    }
+    const records = await fetch(`${API}/history`).then(r => r.json());
+    if (!records.length) { setHtml('historyContent', '<p class="muted">No history yet.</p>'); return; }
     const rows = records.map(r => {
-      const sc = r.brand_score || 0;
+      const sc  = r.brand_score || 0;
       const cls = sc >= 80 ? 'high' : sc >= 60 ? 'med' : 'low';
-      const date = new Date(r.timestamp || Date.now()).toLocaleString();
+      const dt  = r.timestamp ? new Date(r.timestamp).toLocaleString() : '—';
       return `<tr>
         <td>${r.feature_name || '—'}</td>
         <td><span class="score-badge ${cls}">${sc}/100</span></td>
         <td>${r.token_count || '—'}</td>
         <td>${r.generation_time_ms ? (r.generation_time_ms/1000).toFixed(1)+'s' : '—'}</td>
         <td>${(r.platforms||[]).join(', ')}</td>
-        <td style="color:var(--on-surface);font-size:12px">${date}</td>
+        <td style="color:var(--on-surface);font-size:12px">${dt}</td>
       </tr>`;
     }).join('');
     setHtml('historyContent', `
@@ -411,24 +425,10 @@ async function loadHistory() {
         <thead><tr><th>Feature</th><th>Score</th><th>Tokens</th><th>Time</th><th>Platforms</th><th>Date</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`);
-  } catch {
-    setHtml('historyContent', '<p class="muted">Could not load history — is the backend running?</p>');
-  }
+  } catch { setHtml('historyContent', '<p class="muted">Could not load history — is the backend running?</p>'); }
 }
-
-/* ═══════════════════════════════════════
-   SERVE IMAGES — Static mount helper
-   FastAPI serves output/ as /static
-═══════════════════════════════════════ */
-// Mount output dir as /static in FastAPI if not done already (handled in main.py)
 
 /* ═══════════════════════════════════════
    INIT
 ═══════════════════════════════════════ */
 loadBrands();
-
-// Show ptab-panels correctly on init
-document.querySelectorAll('.ptab-panel').forEach(p => {
-  if (!p.classList.contains('active')) p.style.display = 'none';
-  else p.style.display = 'block';
-});
