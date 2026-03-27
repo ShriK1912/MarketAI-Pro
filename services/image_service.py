@@ -59,20 +59,21 @@ class ImageService:
         session_dir.mkdir(parents=True, exist_ok=True)
 
         base_image = None
-        if active_provider == "local":
-            print("[ImageService] Attempting local SDXL Turbo generation...")
-            base_image = self._generate_local_image(prompt)
-            if base_image is None:
-                base_image = self._generate_fal_image(prompt)
-        else:
-            print("[ImageService] Attempting fal.ai generation...")
+        # Priority: HF (if token) -> Fal -> Local -> Placeholder
+        if self.settings.hf_token and active_provider != "local":
+            print("[ImageService] Attempting Hugging Face Flux Schnell generation...")
+            base_image = self._generate_hf_image(prompt)
+
+        if base_image is None and active_provider != "local":
+            print("[ImageService] Attempting fal.ai Flux Schnell generation...")
             base_image = self._generate_fal_image(prompt)
-            if base_image is None:
-                print("[ImageService] Fal generation failed, trying local fallback...")
-                base_image = self._generate_local_image(prompt)
 
         if base_image is None:
-            print("[ImageService] WARNING: All image providers failed - using placeholder")
+            print("[ImageService] Attempting local SDXL Turbo generation fallback...")
+            base_image = self._generate_local_image(prompt)
+
+        if base_image is None:
+            print("[ImageService] WARNING: All providers failed - using placeholder")
             base_image = self._create_placeholder_hero(prompt)
         else:
             print(f"[ImageService] Image generated successfully ({base_image.size[0]}x{base_image.size[1]})")
@@ -112,32 +113,22 @@ class ImageService:
             print(f"[ImageService] Cleanup warning: CUDA cache cleanup failed: {exc}")
 
     def _enhance_prompt(self, prompt: str) -> tuple[str, str]:
-        # Strip any product/feature name down to a clean scene concept
         scene = prompt.strip()
         positive = (
             "cinematic product-launch hero photograph, professional photography, "
             "dramatic studio lighting with teal and purple accent lights, dark moody backdrop, "
             "shallow depth of field, bokeh background, ultra-sharp foreground subject, "
             "clean minimalist composition, premium corporate aesthetic, "
-            "photorealistic, 8K detail, no text anywhere, no logos, "
+            "photorealistic, 8K detail, "
             f"concept: {scene}"
         )
+        # Flux is extremely good at text, so we can be less aggressive with negative prompts
+        # but we still want to avoid generic 'UI' screenshots.
         negative = (
-            # Text / typography artifacts (the main culprit)
-            "text, letters, words, typography, font, caption, watermark, label, headline, body copy, "
-            "readable text, unreadable text, garbled text, lorem ipsum, "
-            # UI / web artifacts (causes the 'website screenshot' issue)
-            "user interface, UI, website, web page, browser, browser chrome, "
-            "navigation bar, menu bar, toolbar, dropdown, button, form, "
-            "screenshot, computer screen, monitor screen, phone screen, tablet screen, "
-            "dashboard, app, software interface, HUD, overlay graphic, "
-            # Quality issues
+            "text, letters, words, typography, font, caption, watermark, label, "
+            "user interface, UI, website, web page, browser, browser chrome, navigation, "
             "blurry, out of focus, low quality, low resolution, jpeg artifacts, "
-            "overexposed, underexposed, washed out, flat lighting, harsh shadows, "
-            # Compositional issues
-            "clutter, busy background, distracting elements, multiple subjects, "
-            "bad anatomy, deformed, duplicate, extra limbs, "
-            "stock photo style, cheesy, generic, corporate clip art"
+            "stock photo style, cheesy, generic"
         )
         return positive, negative
 
@@ -311,11 +302,17 @@ class ImageService:
         enhanced_prompt, _ = self._enhance_prompt(prompt)
 
         try:
-            print("[ImageService] Calling fal.ai fast-sdxl API...")
+            print("[ImageService] Calling fal.ai flux/schnell API...")
             os.environ["FAL_KEY"] = self.settings.fal_api_key
+            # Flux Schnell typically requires 4 steps for optimal speed/quality trade-off
             result = fal_client.subscribe(
-                "fal-ai/fast-sdxl",
-                arguments={"prompt": enhanced_prompt},
+                "fal-ai/flux/schnell",
+                arguments={
+                    "prompt": enhanced_prompt,
+                    "image_size": "landscape_4_3",
+                    "num_inference_steps": 4,
+                    "enable_safety_checker": False
+                },
                 with_logs=False,
             )
             images = result.get("images") or []
@@ -324,22 +321,45 @@ class ImageService:
                 return None
 
             image_url = images[0]["url"]
-
-            try:
-                import requests
-                from io import BytesIO
-
-                response = requests.get(image_url, timeout=60)
-                response.raise_for_status()
-                print(f"[ImageService] Fal image downloaded ({len(response.content)} bytes)")
-                return self._post_process_image(Image.open(BytesIO(response.content)).convert("RGB"))
-            except Exception as exc:
-                print(f"[ImageService] ERROR downloading fal image: {exc}")
-                print(traceback.format_exc())
-                return None
+            print(f"[ImageService] Fal success: {image_url}")
+            
+            import requests
+            from io import BytesIO
+            resp = requests.get(image_url, timeout=20)
+            resp.raise_for_status()
+            return self._post_process_image(Image.open(BytesIO(resp.content)).convert("RGB"))
         except Exception as exc:
-            print(f"[ImageService] ERROR fal API call failed: {exc}")
-            print(traceback.format_exc())
+            print(f"[ImageService] ERROR fal.ai failed: {exc}")
+            return None
+
+    def _generate_hf_image(self, prompt: str) -> Image.Image | None:
+        """Generates image using Hugging Face Inference API with Flux Schnell."""
+        if not self.settings.hf_token:
+            return None
+
+        enhanced_prompt, _ = self._enhance_prompt(prompt)
+        import requests
+        from io import BytesIO
+
+        # Flux Schnell on HF Inference API
+        API_URL = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
+        headers = {"Authorization": f"Bearer {self.settings.hf_token}"}
+
+        try:
+            print("[ImageService] Calling Hugging Face Inference API (black-forest-labs/FLUX.1-schnell)...")
+            response = requests.post(
+                API_URL,
+                headers=headers,
+                json={"inputs": enhanced_prompt, "parameters": {"num_inference_steps": 4}},
+                timeout=45
+            )
+            if response.status_code != 200:
+                print(f"[ImageService] HF Error: {response.status_code} {response.text}")
+                return None
+
+            return self._post_process_image(Image.open(BytesIO(response.content)).convert("RGB"))
+        except Exception as exc:
+            print(f"[ImageService] ERROR Hugging Face failed: {exc}")
             return None
 
 
