@@ -112,25 +112,46 @@ class ImageService:
             print(f"[ImageService] Cleanup warning: CUDA cache cleanup failed: {exc}")
 
     def _enhance_prompt(self, prompt: str) -> tuple[str, str]:
+        # Strip any product/feature name down to a clean scene concept
+        scene = prompt.strip()
         positive = (
-            "premium B2B SaaS campaign hero image, polished product launch scene, "
-            "cinematic lighting, realistic materials, strong focal subject, clean composition, "
-            "professional enterprise marketing visual, highly detailed, no clutter. "
-            f"Scene request: {prompt.strip()}"
+            "cinematic product-launch hero photograph, professional photography, "
+            "dramatic studio lighting with teal and purple accent lights, dark moody backdrop, "
+            "shallow depth of field, bokeh background, ultra-sharp foreground subject, "
+            "clean minimalist composition, premium corporate aesthetic, "
+            "photorealistic, 8K detail, no text anywhere, no logos, "
+            f"concept: {scene}"
         )
         negative = (
-            "text, caption, watermark, logo, brand mark, blurry, low detail, empty room, stock photo, "
-            "bad anatomy, distorted screens, duplicate objects, clutter, washed out colors, flat lighting"
+            # Text / typography artifacts (the main culprit)
+            "text, letters, words, typography, font, caption, watermark, label, headline, body copy, "
+            "readable text, unreadable text, garbled text, lorem ipsum, "
+            # UI / web artifacts (causes the 'website screenshot' issue)
+            "user interface, UI, website, web page, browser, browser chrome, "
+            "navigation bar, menu bar, toolbar, dropdown, button, form, "
+            "screenshot, computer screen, monitor screen, phone screen, tablet screen, "
+            "dashboard, app, software interface, HUD, overlay graphic, "
+            # Quality issues
+            "blurry, out of focus, low quality, low resolution, jpeg artifacts, "
+            "overexposed, underexposed, washed out, flat lighting, harsh shadows, "
+            # Compositional issues
+            "clutter, busy background, distracting elements, multiple subjects, "
+            "bad anatomy, deformed, duplicate, extra limbs, "
+            "stock photo style, cheesy, generic, corporate clip art"
         )
         return positive, negative
 
     def _post_process_image(self, image: Image.Image) -> Image.Image:
         processed = image.convert("RGB")
-        processed = ImageEnhance.Contrast(processed).enhance(1.06)
-        processed = ImageEnhance.Color(processed).enhance(1.08)
-        processed = processed.filter(ImageFilter.UnsharpMask(radius=1.8, percent=115, threshold=3))
-        # Add subtle sharpness filter (2.0 was too strong and deep-fried the image)
-        processed = ImageEnhance.Sharpness(processed).enhance(1.1)
+        # Slight contrast lift for dark-mode marketing aesthetic
+        processed = ImageEnhance.Contrast(processed).enhance(1.08)
+        # Gentle saturation boost — more pop without neon look
+        processed = ImageEnhance.Color(processed).enhance(1.12)
+        # Mild unsharp mask for crispness
+        processed = processed.filter(ImageFilter.UnsharpMask(radius=1.2, percent=100, threshold=4))
+        processed = ImageEnhance.Sharpness(processed).enhance(1.05)
+        # Subtle brightness lift (SDXL Turbo sometimes runs slightly dark on CPU)
+        processed = ImageEnhance.Brightness(processed).enhance(1.04)
         return processed
 
     def _generate_local_image(self, prompt: str) -> Image.Image | None:
@@ -166,12 +187,15 @@ class ImageService:
 
             self._pipeline = self._pipeline.to(device)
 
-            print("[ImageService] Running inference (num_steps=4, guidance_scale=0.0, negative_prompt=on)...")
+            # SDXL Turbo: 4 steps = fastest, 8 steps = better quality (+~2x time)
+            # guidance_scale 0.0 = pure turbo speed, 0.5-1.0 = slightly more prompt-adherent
+            steps = 8 if not use_cuda else 4   # CPU gets 8 for quality; GPU fast enough for more
+            print(f"[ImageService] Running inference (num_steps={steps}, guidance_scale=0.5)...")
             result = self._pipeline(
                 prompt=enhanced_prompt,
                 negative_prompt=negative_prompt,
-                num_inference_steps=4,
-                guidance_scale=0.0,
+                num_inference_steps=steps,
+                guidance_scale=0.5,
             )
             image = self._post_process_image(result.images[0])
             return image
