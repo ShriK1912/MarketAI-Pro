@@ -33,6 +33,38 @@ async def lifespan(_: FastAPI):
 
 settings = get_settings()
 app = FastAPI(title="Automated Marketing Content System", lifespan=lifespan)
+
+# --- Frontend & Static Files ---
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
+import pathlib
+
+# Resolve paths relative to this file
+_here = pathlib.Path(__file__).resolve().parent
+_root_dir = _here.parent
+_frontend_dir = _root_dir / "frontend"
+_output_dir = _root_dir / "output"
+_output_dir.mkdir(parents=True, exist_ok=True)
+
+print(f"[Main] Root: {_root_dir}")
+print(f"[Main] Frontend: {_frontend_dir} (exists={_frontend_dir.exists()})")
+
+# Mounting
+if _frontend_dir.exists():
+    app.mount("/ui", StaticFiles(directory=str(_frontend_dir), html=True), name="frontend")
+else:
+    print(f"[Main] WARNING: Frontend directory NOT found at {_frontend_dir}")
+
+app.mount("/static", StaticFiles(directory=str(_output_dir)), name="static_output")
+
+@app.get("/")
+async def root_redirect():
+    return RedirectResponse(url="/ui/")
+
+@app.get("/ui")
+async def ui_slash_redirect():
+    return RedirectResponse(url="/ui/")
+
 rag_chain = RAGChain()
 scraper_service = WebScraperService()
 image_service = ImageService()
@@ -42,32 +74,23 @@ carousel_service = CarouselService()
 notification_service = NotificationService()
 session_store = SessionStore()
 
+# --- Middleware ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
         f"http://localhost:{settings.streamlit_port}",
         "http://localhost:5500",
         "http://127.0.0.1:5500",
         "http://localhost:8080",
         "http://127.0.0.1:8080",
-        "null",  # file:// requests from browser opening index.html directly
+        "null",
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Serve the new frontend as static files
-from fastapi.staticfiles import StaticFiles
-import pathlib
-_frontend_dir = pathlib.Path(__file__).parent.parent / "frontend"
-if _frontend_dir.exists():
-    app.mount("/ui", StaticFiles(directory=str(_frontend_dir), html=True), name="frontend")
-
-# Serve generated images/output as /static so the frontend can reference them
-_output_dir = pathlib.Path(__file__).parent.parent / "output"
-_output_dir.mkdir(parents=True, exist_ok=True)
-app.mount("/static", StaticFiles(directory=str(_output_dir)), name="static_output")
 
 @app.get("/health")
 async def health() -> dict[str, object]:
