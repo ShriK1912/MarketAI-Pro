@@ -216,6 +216,7 @@ async def generate_image(request: ImageRequest) -> dict[str, object]:
         request.session_id,
         headline=generated_copy.feature_name,
         supporting_text=generated_copy.summary,
+        provider_override=request.provider,
     )
     slide_paths = carousel_service.render_slides(
         request.session_id,

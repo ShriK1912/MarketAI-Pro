@@ -60,6 +60,8 @@ def init_session_state() -> None:
         "token_stats": None,
         "session_id": None,
         "image_paths": {},
+        "sdxl_image_paths": None,
+        "visuals_started": False,
         "carousel_paths": [],
         "gif_path": None,
         "mp4_path": None,
@@ -77,11 +79,11 @@ def init_session_state() -> None:
 
 def call_generate(payload: dict) -> tuple[dict | None, str | None]:
     try:
-        response = requests.post(f"{FASTAPI_URL}/generate-sync", json=payload, timeout=45)
+        response = requests.post(f"{FASTAPI_URL}/generate-sync", json=payload, timeout=600)
         response.raise_for_status()
         return response.json(), None
     except requests.exceptions.Timeout:
-        return None, "Generation timed out after 45 seconds."
+        return None, "Generation timed out after 600 seconds. The local LLM might be taking longer than 10 minutes."
     except requests.exceptions.HTTPError as exc:
         try:
             detail = exc.response.json()
@@ -281,38 +283,49 @@ with tab2:
     st.subheader("Visuals")
     if st.session_state["generated_copy"] and st.session_state["session_id"]:
         if st.button("Generate visuals"):
-            image_placeholder = st.empty()
-            with image_placeholder.container():
-                lottie_col, text_col = st.columns([1, 2])
-                with lottie_col:
-                    st_lottie(lottie_sdxl, height=180, width=180, key="sdxl_loading_anim", loop=True, quality="medium")
-                with text_col:
-                    st.markdown("### Generating visuals...")
-                    st.caption("SDXL-Turbo rendering your hero image")
-                    st.caption("Estimated: 3-5 minutes on CPU, ~15s on GPU")
-            img_response = requests.post(
-                f"{FASTAPI_URL}/generate-image",
-                json={
-                    "session_id": st.session_state["session_id"],
-                    "prompt": st.session_state["generated_copy"]["image_prompt"],
-                    "platforms": ["linkedin", "instagram"],
-                },
-                timeout=600,
-            )
-            image_placeholder.empty()
-            if img_response.status_code == 200:
-                payload = img_response.json()
-                st.session_state["image_paths"] = payload["image_paths_by_platform"]
-                st.session_state["carousel_paths"] = payload.get("carousel_paths", [])
-                st.session_state["gif_path"] = payload.get("gif_path")
-                st.session_state["mp4_path"] = payload.get("mp4_path")
-                st.toast("Hero image ready!", icon="✅")
+            st.session_state["visuals_started"] = True
+            st.session_state["sdxl_image_paths"] = None
+            st.session_state["image_paths"] = {}
+            st.rerun()
+
+        if st.session_state.get("visuals_started"):
+            if not st.session_state.get("sdxl_image_paths"):
+                image_placeholder = st.empty()
+                with image_placeholder.container():
+                    lottie_col, text_col = st.columns([1, 2])
+                    with lottie_col:
+                        st_lottie(lottie_sdxl, height=180, width=180, key="sdxl_loading_anim", loop=True, quality="medium")
+                    with text_col:
+                        st.markdown("### 💻 Generating Local SDXL Alternatives...")
+                        st.caption("Running a second pass completely offline as a fallback.")
+                        st.caption("Estimated: 3-5 minutes on CPU")
+
+                img_response = requests.post(
+                    f"{FASTAPI_URL}/generate-image",
+                    json={
+                        "session_id": st.session_state["session_id"],
+                        "prompt": st.session_state["generated_copy"]["image_prompt"],
+                        "platforms": ["linkedin", "instagram"],
+                        "provider": "local",
+                    },
+                    timeout=600,
+                )
+                image_placeholder.empty()
+                if img_response.status_code == 200:
+                    payload = img_response.json()
+                    st.session_state["sdxl_image_paths"] = payload["image_paths_by_platform"]
+                    st.toast("Offline SDXL generation complete!", icon="✅")
                 st.rerun()
-        if st.session_state["image_paths"]:
-            for platform, path in st.session_state["image_paths"].items():
-                st.write(platform.title())
-                st.image(path)
-            if st.session_state["carousel_paths"]:
+
+            if st.session_state.get("sdxl_image_paths"):
+                st.markdown("---")
+                st.markdown("### Local SDXL Turbo")
+                for platform, path in st.session_state["sdxl_image_paths"].items():
+                    st.write(platform.title())
+                    st.image(path)
+
+            if st.session_state.get("carousel_paths"):
+                st.markdown("---")
                 st.write("Carousel")
                 cols = st.columns(min(5, len(st.session_state["carousel_paths"])))
                 for col, path in zip(cols, st.session_state["carousel_paths"]):

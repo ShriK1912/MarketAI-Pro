@@ -96,11 +96,15 @@ class RAGChain:
     def build_prompt(self, feature: FeatureInput, template: BrandTemplate) -> PromptBundle:
         example_blocks = []
         for platform in ("linkedin", "twitter", "instagram"):
-            examples = template.platform_examples.get(platform, [])[:2]
+            examples = template.platform_examples.get(platform, [])[:1]  # Reduced from 2 to 1 example
             if examples:
                 example_blocks.append(f"{platform.title()} examples:\n- " + "\n- ".join(examples))
-        top_posts_block = "\n".join(f"- {post}" for post in template.top_performing_posts[:3])
+        top_posts_block = "\n".join(f"- {post}" for post in template.top_performing_posts[:1])  # Reduced from 3 to 1
         image_prompt_seed = self._build_image_prompt(feature, template)
+        
+        # Heavily truncate enriched context for speed (was passing thousands of characters)
+        short_context = template.enriched_context[:250] + "..." if template.enriched_context else ""
+
         prompt = f"""
 System brand voice: {template.core_voice}
 Brand mission: {template.mission}
@@ -108,14 +112,13 @@ Tone words: {', '.join(template.tone_words)}
 Forbidden words: {', '.join(template.forbidden_words)}
 Competitors to avoid: {', '.join(template.competitors)}
 Required CTA: {template.required_cta}
-Visual aesthetic: {template.visual_aesthetic}
 
-Recent Brand Context: {template.enriched_context}
+Recent Brand Context: {short_context}
 Top-performing post examples:
 {top_posts_block or '- None provided'}
 
 Platform examples:
-{chr(10).join(example_blocks) or '- No platform-specific examples provided'}
+{chr(10).join(example_blocks) or '- No examples provided'}
 
 STRICT PLATFORM RULES:
 - linkedin: {template.linkedin_rules}. Must be 3-4 short paragraphs, highly professional, business value focused, and sound executive-ready. Do not reuse Twitter phrasing.
@@ -220,19 +223,58 @@ Draft:
 {draft_text}
         """.strip()
 
+    # Maximum number of LLM generation attempts before accepting best result
+    MAX_BRAND_SCORE_ATTEMPTS = 3
+    # Minimum brand score threshold to stop retrying
+    BRAND_SCORE_THRESHOLD = 70.0
+
     def _try_provider_generate(self, feature: FeatureInput, prompt_bundle: PromptBundle) -> GeneratedCopy | None:
         try:
-            print(f"[llm-attempt-start] feature={feature.feature_name}")
-            creative_text = self._invoke_llm_with_timeout(self.llm_creative, prompt_bundle.prompt, timeout=20)
-            structured_prompt = self._structured_prompt(feature, creative_text)
-            structured_text = self._invoke_llm_with_timeout(self.llm_structured, structured_prompt, timeout=12)
+            print(f"[llm-attempt-start] feature={feature.feature_name} (Single-pass JSON mode)")
+            
+            # Combine formatting rules into the main prompt to save an entire inference cycle
+            combined_prompt = prompt_bundle.prompt + "\n\n" + self._structured_prompt(feature, "[Generate directly in JSON]")
+            
+            structured_text = self._invoke_llm_with_timeout(self.llm_creative, combined_prompt, timeout=120)
             payload = self.repair_output(structured_text)
             generated = GeneratedCopy.model_validate(payload)
             print(f"[llm-attempt-success] feature={feature.feature_name}")
             return generated
-        except Exception:
-            print(f"[llm-attempt-fallback] feature={feature.feature_name}")
+        except Exception as e:
+            print(f"[llm-attempt-fallback] feature={feature.feature_name} error={repr(e)}")
             return None
+
+    def _build_improvement_prompt(self, feature: FeatureInput, template: BrandTemplate, previous_generated: GeneratedCopy, current_score: float) -> PromptBundle:
+        """Build a feedback-enriched prompt to help the LLM improve brand alignment on retry."""
+        lowered = self._combined_text(previous_generated).lower()
+
+        issues: list[str] = []
+        if template.required_cta and template.required_cta.lower() not in lowered:
+            issues.append(f"- Missing required CTA: include '{template.required_cta}' verbatim in each platform caption.")
+        if template.tone_words:
+            missing_tone = [w for w in template.tone_words if w.lower() not in lowered]
+            if missing_tone:
+                issues.append(f"- Tone words not present: incorporate '{', '.join(missing_tone[:5])}' naturally.")
+        if template.mission:
+            mission_words = template.mission.lower().split()[:4]
+            if not any(w in lowered for w in mission_words):
+                issues.append(f"- Brand mission not reflected: weave the mission '{template.mission[:80]}' into the messaging.")
+        if template.brand_name and template.brand_name.lower() not in lowered:
+            issues.append(f"- Brand name '{template.brand_name}' should appear at least once.")
+
+        issues_block = "\n".join(issues) if issues else "- The previous attempt lacked sufficient brand alignment overall. Rewrite with stronger brand voice."
+
+        base_bundle = self.build_prompt(feature, template)
+        improvement_prefix = f"""
+IMPORTANT: A previous generation attempt received a brand alignment score of {current_score:.1f}/100 (minimum required: {self.BRAND_SCORE_THRESHOLD}).
+You MUST fix the following issues in this new attempt:
+{issues_block}
+
+Do not repeat the previous captions — generate fresh, improved versions.
+
+"""
+        improved_prompt = improvement_prefix + base_bundle.prompt
+        return PromptBundle(prompt=improved_prompt, rag_examples=base_bundle.rag_examples, trends=base_bundle.trends)
 
     def _ensure_platform_shapes(self, feature: FeatureInput, generated: GeneratedCopy, template: BrandTemplate) -> GeneratedCopy:
         cta = template.required_cta or self.guidelines["required_cta"]
@@ -273,8 +315,8 @@ Draft:
         start = time.time()
         feature = FeatureInput(
             feature_name=sanitize_text(feature.feature_name, 120),
-            description=sanitize_text(feature.description, 500),
-            target_audience=sanitize_text(feature.target_audience, 180),
+            description=sanitize_text(feature.description, 200),
+            target_audience=sanitize_text(feature.target_audience, 150),
             tone=sanitize_text(feature.tone, 60),
             platforms=feature.platforms,
             brand_name=feature.brand_name
@@ -301,31 +343,39 @@ Draft:
             )
             
         prompt_bundle = self.build_prompt(feature, template)
-        base_input_tokens = count_tokens(prompt_bundle.prompt)
-        
+
         best_generated = None
         best_score = -1.0
         retries_used = 0
         total_input_tokens = 0
         total_output_tokens = 0
-        
-        for attempt in range(1):
-            total_input_tokens += base_input_tokens
-            generated = self._try_provider_generate(feature, prompt_bundle) or self._fallback_generate(feature, template)
+        current_prompt_bundle = prompt_bundle
+
+        for attempt in range(self.MAX_BRAND_SCORE_ATTEMPTS):
+            total_input_tokens += count_tokens(current_prompt_bundle.prompt)
+            generated = self._try_provider_generate(feature, current_prompt_bundle) or self._fallback_generate(feature, template)
             generated = self._ensure_platform_shapes(feature, generated, template)
-            if generated.feature_name == feature.feature_name and generated.summary.startswith(feature.feature_name):
-                print(f"[generation-attempt] feature={feature.feature_name} attempt={attempt + 1} mode={'fallback-or-shaped'}")
             current_output_tokens = count_tokens(generated.model_dump_json())
             total_output_tokens += current_output_tokens
-            
+
             current_score = self.scorer.score(self._combined_text(generated), template)
-            
+            print(f"[brand-score] feature={feature.feature_name} attempt={attempt + 1}/{self.MAX_BRAND_SCORE_ATTEMPTS} score={current_score:.2f}")
+
             if current_score > best_score:
                 best_score = current_score
                 best_generated = generated
-                
-            if best_score >= 70.0:
+
+            if best_score >= self.BRAND_SCORE_THRESHOLD:
+                print(f"[brand-score-pass] feature={feature.feature_name} score={best_score:.2f} on attempt {attempt + 1}")
                 break
+
+            # Score is below threshold — build a feedback-enriched prompt for the next attempt
+            if attempt < self.MAX_BRAND_SCORE_ATTEMPTS - 1:
+                retries_used += 1
+                print(f"[brand-score-retry] feature={feature.feature_name} score={current_score:.2f} < {self.BRAND_SCORE_THRESHOLD} — retrying ({attempt + 2}/{self.MAX_BRAND_SCORE_ATTEMPTS})")
+                current_prompt_bundle = self._build_improvement_prompt(feature, template, best_generated, best_score)
+            else:
+                print(f"[brand-score-final] feature={feature.feature_name} best_score={best_score:.2f} after {self.MAX_BRAND_SCORE_ATTEMPTS} attempts")
                 
         best_generated = self._enforce_platform_rules(best_generated, template)
         best_generated.image_prompt = self._build_image_prompt(feature, template, best_generated.summary)

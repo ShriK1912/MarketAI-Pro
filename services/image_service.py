@@ -50,18 +50,19 @@ class ImageService:
         session_id: str,
         headline: str = "",
         supporting_text: str = "",
+        provider_override: str | None = None,
     ) -> dict[str, str]:
-        print(f"[ImageService] generate_hero called | provider={self.settings.image_provider} | prompt='{prompt[:80]}...'")
+        active_provider = provider_override or self.settings.image_provider
+        print(f"[ImageService] generate_hero called | provider={active_provider} | prompt='{prompt[:80]}...'")
         self._sequential_cleanup()
         session_dir = Path(self.settings.output_dir) / session_id / "images"
         session_dir.mkdir(parents=True, exist_ok=True)
 
         base_image = None
-        if self.settings.image_provider == "local":
+        if active_provider == "local":
             print("[ImageService] Attempting local SDXL Turbo generation...")
             base_image = self._generate_local_image(prompt)
             if base_image is None:
-                print("[ImageService] Local generation failed, trying fal.ai fallback...")
                 base_image = self._generate_fal_image(prompt)
         else:
             print("[ImageService] Attempting fal.ai generation...")
@@ -76,11 +77,16 @@ class ImageService:
         else:
             print(f"[ImageService] Image generated successfully ({base_image.size[0]}x{base_image.size[1]})")
 
-        branded = self.apply_brand_overlay(base_image, headline=headline, supporting_text=supporting_text)
         linkedin_path = session_dir / "hero_linkedin_1200x628.png"
         instagram_path = session_dir / "hero_instagram_1080x1080.png"
-        self.resize_for_platform(branded, "linkedin").save(linkedin_path, quality=95)
-        self.resize_for_platform(branded, "instagram").save(instagram_path, quality=95)
+
+        linkedin_base = self.resize_for_platform(base_image, "linkedin")
+        linkedin_branded = self.apply_brand_overlay(linkedin_base, headline=headline, supporting_text=supporting_text)
+        linkedin_branded.save(linkedin_path, quality=95)
+
+        instagram_base = self.resize_for_platform(base_image, "instagram")
+        instagram_branded = self.apply_brand_overlay(instagram_base, headline=headline, supporting_text=supporting_text)
+        instagram_branded.save(instagram_path, quality=95)
         print(f"[ImageService] Saved: {linkedin_path} | {instagram_path}")
         return {"linkedin": str(linkedin_path), "instagram": str(instagram_path)}
 
@@ -123,6 +129,8 @@ class ImageService:
         processed = ImageEnhance.Contrast(processed).enhance(1.06)
         processed = ImageEnhance.Color(processed).enhance(1.08)
         processed = processed.filter(ImageFilter.UnsharpMask(radius=1.8, percent=115, threshold=3))
+        # Add subtle sharpness filter (2.0 was too strong and deep-fried the image)
+        processed = ImageEnhance.Sharpness(processed).enhance(1.1)
         return processed
 
     def _generate_local_image(self, prompt: str) -> Image.Image | None:
@@ -309,6 +317,8 @@ class ImageService:
             print(f"[ImageService] ERROR fal API call failed: {exc}")
             print(traceback.format_exc())
             return None
+
+
 
     def generate_via_fal(self, prompt: str, session_id: str) -> dict[str, Any]:
         return {

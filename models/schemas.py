@@ -89,6 +89,7 @@ class ImageRequest(BaseModel):
     session_id: str
     prompt: str
     platforms: list[PlatformName] = Field(default_factory=lambda: ["linkedin", "instagram"])
+    provider: str | None = None
 
 
 class ImageResponse(BaseModel):

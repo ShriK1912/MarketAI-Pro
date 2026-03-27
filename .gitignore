@@ -6,3 +6,5 @@ output/
 data/chroma/
 data/history.db
 *.zip
+.venv/
+.venv311/

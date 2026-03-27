@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     groq_model: str = "llama-3.1-8b-instant"
     groq_api_key: str = ""
     fal_api_key: str = ""
+    google_api_key: str = ""
     slack_webhook_url: str = ""
     fastapi_host: str = "0.0.0.0"
     fastapi_port: int = 8000
