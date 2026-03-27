@@ -59,17 +59,13 @@ class ImageService:
         session_dir.mkdir(parents=True, exist_ok=True)
 
         base_image = None
-        # Priority: HF (if token) -> Fal -> Local -> Placeholder
+        # Priority: HF Flux Schnell (if HF_TOKEN set) -> Local SDXL Turbo -> Placeholder
         if self.settings.hf_token and active_provider != "local":
             print("[ImageService] Attempting Hugging Face Flux Schnell generation...")
             base_image = self._generate_hf_image(prompt)
 
-        if base_image is None and active_provider != "local":
-            print("[ImageService] Attempting fal.ai Flux Schnell generation...")
-            base_image = self._generate_fal_image(prompt)
-
         if base_image is None:
-            print("[ImageService] Attempting local SDXL Turbo generation fallback...")
+            print("[ImageService] Attempting local SDXL Turbo generation...")
             base_image = self._generate_local_image(prompt)
 
         if base_image is None:
@@ -115,20 +111,20 @@ class ImageService:
     def _enhance_prompt(self, prompt: str) -> tuple[str, str]:
         scene = prompt.strip()
         positive = (
-            "cinematic product-launch hero photograph, professional photography, "
-            "dramatic studio lighting with teal and purple accent lights, dark moody backdrop, "
-            "shallow depth of field, bokeh background, ultra-sharp foreground subject, "
-            "clean minimalist composition, premium corporate aesthetic, "
-            "photorealistic, 8K detail, "
-            f"concept: {scene}"
+            # Explicitly anchor to software/SaaS context so Flux never generates physical products
+            "professional B2B SaaS marketing hero image, software industry, "
+            "team of professionals in a modern tech office, "
+            "dramatic cinematic lighting with teal and purple accent lights, dark moody backdrop, "
+            "shallow depth of field, bokeh, ultra-sharp foreground, "
+            "clean minimalist composition, premium corporate aesthetic, photorealistic, "
+            f"scene: {scene}"
         )
-        # Flux is extremely good at text, so we can be less aggressive with negative prompts
-        # but we still want to avoid generic 'UI' screenshots.
         negative = (
-            "text, letters, words, typography, font, caption, watermark, label, "
-            "user interface, UI, website, web page, browser, browser chrome, navigation, "
-            "blurry, out of focus, low quality, low resolution, jpeg artifacts, "
-            "stock photo style, cheesy, generic"
+            # Prevent Flux from generating physical consumer products
+            "bottle, cosmetics, perfume, product, package, container, tube, jar, can, "
+            "text, letters, words, watermark, logo, caption, "
+            "user interface, UI, website, browser, screenshot, "
+            "blurry, low quality, jpeg artifacts, stock photo, cheesy"
         )
         return positive, negative
 
