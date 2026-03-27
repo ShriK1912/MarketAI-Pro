@@ -44,12 +44,30 @@ session_store = SessionStore()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[f"http://localhost:{settings.streamlit_port}"],
+    allow_origins=[
+        f"http://localhost:{settings.streamlit_port}",
+        "http://localhost:5500",
+        "http://127.0.0.1:5500",
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+        "null",  # file:// requests from browser opening index.html directly
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Serve the new frontend as static files
+from fastapi.staticfiles import StaticFiles
+import pathlib
+_frontend_dir = pathlib.Path(__file__).parent.parent / "frontend"
+if _frontend_dir.exists():
+    app.mount("/ui", StaticFiles(directory=str(_frontend_dir), html=True), name="frontend")
+
+# Serve generated images/output as /static so the frontend can reference them
+_output_dir = pathlib.Path(__file__).parent.parent / "output"
+_output_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(_output_dir)), name="static_output")
 
 @app.get("/health")
 async def health() -> dict[str, object]:

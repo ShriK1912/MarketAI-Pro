@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MarketAI Pro — Intelligent Campaign Studio</title>
+  <meta name="description" content="AI-powered marketing content generation: brand-aligned captions, visuals, and campaign packages." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-shell">
+
+    <!-- ───────────── SIDEBAR ───────────── -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-logo">
+        <div class="logo-icon">⚡</div>
+        <div class="logo-text">
+          <span class="logo-name">MarketAI</span>
+          <span class="logo-sub">Pro</span>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <p class="sidebar-label">Brand Profile</p>
+        <select id="brandSelect" class="glass-select">
+          <option value="Mock Brand">Mock Brand</option>
+        </select>
+      </div>
+
+      <div class="sidebar-section">
+        <p class="sidebar-label">Onboard via Document</p>
+        <div class="drop-zone" id="dropZone">
+          <span class="drop-icon">📄</span>
+          <p class="drop-text">Drop .txt .md .pdf .docx</p>
+          <input type="file" id="fileInput" accept=".txt,.md,.pdf,.docx" hidden />
+          <button class="btn-ghost btn-sm" onclick="document.getElementById('fileInput').click()">Browse</button>
+        </div>
+        <button class="btn-primary btn-sm mt-2" id="parseBtn" disabled>Parse &amp; Scrape</button>
+        <div id="parseStatus" class="status-msg hidden"></div>
+      </div>
+
+      <div class="sidebar-divider"></div>
+
+      <div class="scraper-badge">
+        <span class="pulse-dot"></span>
+        <span class="scraper-text">Scraper monitoring active</span>
+      </div>
+
+      <button class="btn-ghost btn-block mt-auto" id="mockEventBtn">⚡ New Event Detected</button>
+
+      <div id="onboardSummary" class="onboard-summary hidden"></div>
+    </aside>
+
+    <!-- ───────────── MAIN CONTENT ───────────── -->
+    <main class="main-content">
+
+      <!-- Tab bar -->
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="generate" id="tabGenerate">Generate</button>
+        <button class="tab-btn" data-tab="visuals" id="tabVisuals">Visuals</button>
+        <button class="tab-btn" data-tab="history" id="tabHistory">History</button>
+      </div>
+
+      <!-- ── TAB: GENERATE ── -->
+      <section class="tab-panel active" id="panelGenerate">
+        <div class="two-col">
+
+          <!-- INPUT CARD -->
+          <div class="glass-card">
+            <h2 class="card-title">Campaign Lab</h2>
+            <p class="card-subtitle">Synthesize brand-aligned content across platforms.</p>
+
+            <div class="form-group">
+              <label class="form-label">Feature Name</label>
+              <input class="glass-input" id="featureName" type="text" placeholder="e.g. Dark Mode Analytics" value="Dark Mode Analytics" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Description <span class="char-count" id="descCount">0/500</span></label>
+              <textarea class="glass-input" id="description" rows="4" maxlength="500" placeholder="What does this feature do and why does it matter?">A new dashboard feature that helps teams compare engagement across dark and light mode experiences.</textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Target Audience</label>
+              <input class="glass-input" id="audience" type="text" placeholder="e.g. Product marketers and growth teams" value="Product marketers and growth teams" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tone</label>
+              <select class="glass-select" id="tone">
+                <option value="professional">Professional</option>
+                <option value="bold">Bold</option>
+                <option value="playful">Playful</option>
+                <option value="analytical">Analytical</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Platforms</label>
+              <div class="chip-group" id="platformChips">
+                <button class="chip active" data-value="linkedin">LinkedIn</button>
+                <button class="chip active" data-value="twitter">𝕏 Twitter</button>
+                <button class="chip active" data-value="instagram">Instagram</button>
+              </div>
+            </div>
+
+            <button class="btn-gradient btn-block" id="generateBtn">
+              <span id="generateBtnText">⚡ Generate Campaign</span>
+              <span id="generateSpinner" class="btn-spinner hidden"></span>
+            </button>
+            <div id="generateError" class="error-msg hidden"></div>
+          </div>
+
+          <!-- OUTPUT CARD -->
+          <div class="glass-card" id="outputCard">
+            <div id="outputEmpty" class="empty-state">
+              <div class="empty-icon">🧠</div>
+              <p>Generate content to see results here.</p>
+            </div>
+
+            <div id="outputContent" class="hidden">
+              <div class="score-row">
+                <div class="score-ring-wrapper">
+                  <svg class="score-ring" viewBox="0 0 100 100">
+                    <circle class="ring-track" cx="50" cy="50" r="40" />
+                    <circle class="ring-fill" cx="50" cy="50" r="40" id="scoreArc" />
+                  </svg>
+                  <div class="score-center">
+                    <span class="score-number" id="scoreNumber">0</span>
+                    <span class="score-label">/100</span>
+                  </div>
+                </div>
+                <div class="score-meta">
+                  <p class="score-title">Brand Alignment</p>
+                  <p class="score-desc" id="scoreDesc">—</p>
+                  <div class="stat-chips">
+                    <span class="stat-chip" id="statTokens">—</span>
+                    <span class="stat-chip" id="statLatency">—</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="platform-tabs">
+                <button class="ptab active" data-ptab="linkedin">LinkedIn</button>
+                <button class="ptab" data-ptab="twitter">𝕏 Twitter</button>
+                <button class="ptab" data-ptab="instagram">Instagram</button>
+              </div>
+
+              <div id="ptabLinkedin" class="ptab-panel active">
+                <textarea class="glass-input output-text" id="outLinkedin" rows="6"></textarea>
+                <div class="hashtag-row" id="hashLinkedin"></div>
+              </div>
+              <div id="ptabTwitter" class="ptab-panel hidden">
+                <textarea class="glass-input output-text" id="outTwitter" rows="6"></textarea>
+                <div class="hashtag-row" id="hashTwitter"></div>
+              </div>
+              <div id="ptabInstagram" class="ptab-panel hidden">
+                <textarea class="glass-input output-text" id="outInstagram" rows="6"></textarea>
+                <div class="hashtag-row" id="hashInstagram"></div>
+              </div>
+
+              <details class="expand-section">
+                <summary>Generation Stats</summary>
+                <pre id="genStats" class="stats-pre"></pre>
+              </details>
+              <details class="expand-section">
+                <summary>Validation</summary>
+                <pre id="genValidation" class="stats-pre"></pre>
+              </details>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ── TAB: VISUALS ── -->
+      <section class="tab-panel hidden" id="panelVisuals">
+        <div id="visualsLocked" class="empty-state large">
+          <div class="empty-icon">🖼️</div>
+          <p>Generate copy first, then create visuals.</p>
+        </div>
+
+        <div id="visualsReady" class="hidden">
+          <!-- Step tracker -->
+          <div class="visuals-layout">
+            <div class="step-tracker">
+              <div class="step done" id="step1">
+                <div class="step-dot">✓</div>
+                <span>Generate Copy</span>
+              </div>
+              <div class="step active" id="step2">
+                <div class="step-dot">2</div>
+                <span>Generate Visuals</span>
+              </div>
+              <div class="step" id="step3">
+                <div class="step-dot">3</div>
+                <span>Build Package</span>
+              </div>
+              <div class="step" id="step4">
+                <div class="step-dot">4</div>
+                <span>Send Notification</span>
+              </div>
+            </div>
+
+            <div class="visuals-main">
+              <button class="btn-gradient btn-wide" id="generateVisualsBtn">
+                <span id="visBtnText">🎨 Generate Visuals</span>
+                <span id="visSpinner" class="btn-spinner hidden"></span>
+              </button>
+
+              <div id="visStatus" class="vis-status hidden">
+                <div class="spinner-ring"></div>
+                <div>
+                  <p class="vis-status-title">💻 Generating SDXL Turbo Visuals...</p>
+                  <p class="vis-status-sub">Estimated 3–5 minutes on CPU — running local AI model</p>
+                </div>
+              </div>
+
+              <div id="imageResults" class="hidden">
+                <div class="image-grid">
+                  <div class="image-card" id="imgLinkedIn">
+                    <p class="image-label">LinkedIn · 1200 × 628</p>
+                    <img id="imgLiSrc" src="" alt="LinkedIn visual" />
+                  </div>
+                  <div class="image-card" id="imgInstagram">
+                    <p class="image-label">Instagram · 1080 × 1080</p>
+                    <img id="imgIgSrc" src="" alt="Instagram visual" />
+                  </div>
+                </div>
+              </div>
+
+              <div id="packageActions" class="package-actions hidden">
+                <button class="btn-ghost" id="buildPkgBtn">📦 Build Package</button>
+                <a class="btn-teal" id="downloadLink" href="#" download style="display:none">📥 Download Package (.zip)</a>
+                <button class="btn-ghost slack-btn" id="slackBtn">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/></svg>
+                  Send Slack Notification
+                </button>
+                <div id="slackStatus" class="status-msg hidden"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── TAB: HISTORY ── -->
+      <section class="tab-panel hidden" id="panelHistory">
+        <div class="glass-card">
+          <h2 class="card-title">Session History</h2>
+          <div id="historyContent"><p class="muted">Loading…</p></div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Toast notifications -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
